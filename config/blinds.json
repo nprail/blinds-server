@@ -1,0 +1,40 @@
+{
+  "channels": [
+    {
+      "id": 1,
+      "name": "Living Room",
+      "enabled": true,
+      "codes": {
+        "up":   "REPLACE_WITH_CAPTURED_UP_CODE",
+        "down": "REPLACE_WITH_CAPTURED_DOWN_CODE",
+        "stop": "REPLACE_WITH_CAPTURED_STOP_CODE",
+        "pair": "REPLACE_WITH_CAPTURED_PAIR_CODE"
+      },
+      "protocol": {
+        "pulseLength": 350,
+        "syncFactor": { "high": 1, "low": 31 },
+        "zero":       { "high": 1, "low": 3  },
+        "one":        { "high": 3, "low": 1  },
+        "invertedSignal": false
+      }
+    },
+    {
+      "id": 2,
+      "name": "Bedroom",
+      "enabled": true,
+      "codes": {
+        "up":   "REPLACE_WITH_CAPTURED_UP_CODE",
+        "down": "REPLACE_WITH_CAPTURED_DOWN_CODE",
+        "stop": "REPLACE_WITH_CAPTURED_STOP_CODE",
+        "pair": "REPLACE_WITH_CAPTURED_PAIR_CODE"
+      },
+      "protocol": {
+        "pulseLength": 350,
+        "syncFactor": { "high": 1, "low": 31 },
+        "zero":       { "high": 1, "low": 3  },
+        "one":        { "high": 3, "low": 1  },
+        "invertedSignal": false
+      }
+    }
+  ]
+}
