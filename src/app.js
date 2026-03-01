@@ -12,21 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // ── Security headers ──────────────────────────────────────────────────────────
-// Relax CSP to allow Tailwind CDN for the web UI (React is served locally from /vendor)
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc:  ["'self'"],
-        scriptSrc:   ["'self'", 'https://cdn.tailwindcss.com'],
-        styleSrc:    ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com'],
-        imgSrc:      ["'self'", 'data:'],
-        connectSrc:  ["'self'"],
-        fontSrc:     ["'self'"],
-      },
-    },
-  })
-);
+app.use(helmet());
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors());
