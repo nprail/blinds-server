@@ -16,9 +16,10 @@ The service exposes a clean REST API.  All RF transmission and reception is hand
 6. [Capturing RF codes from your remote](#capturing-rf-codes-from-your-remote)
 7. [Running the service](#running-the-service)
 8. [Running as a systemd service](#running-as-a-systemd-service)
-9. [API reference](#api-reference)
-10. [Project structure](#project-structure)
-11. [Troubleshooting](#troubleshooting)
+9. [Web interface](#web-interface)
+10. [API reference](#api-reference)
+11. [Project structure](#project-structure)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -112,7 +113,13 @@ node --version   # should print v22.x.x
 npm install
 ```
 
-### 4. Install Python dependencies
+### 4. Build the web UI
+
+```bash
+npm run build:ui
+```
+
+### 5. Install Python dependencies
 
 The Python scripts need `spidev` and `RPi.GPIO`.  Use a virtual environment to
 keep things tidy:
@@ -129,7 +136,7 @@ If you use a virtual environment, update `PYTHON_PATH` in your `.env`:
 PYTHON_PATH=/home/pi/blinds-server/.venv/bin/python3
 ```
 
-### 5. Create your environment file
+### 6. Create your environment file
 
 ```bash
 cp .env.example .env
@@ -326,6 +333,82 @@ View logs:
 ```bash
 sudo journalctl -u blinds-server -f
 ```
+
+---
+
+## Web interface
+
+Once the service is running, open a browser and navigate to:
+
+```
+http://<pi-hostname-or-ip>:3000
+```
+
+The page is served as a static bundle built from `ui/` and requires no internet access.
+
+### Building the UI
+
+The web UI source lives in `ui/` and is compiled to `public/` by Vite:
+
+```bash
+# One-time production build (run after cloning, or after any UI changes)
+npm run build:ui
+```
+
+During development you can run the Vite dev server (with hot-module reload) alongside the Node server:
+
+```bash
+npm run dev        # starts the Express API on :3000
+npm run dev:ui     # starts the Vite dev server on :5173 (proxies /api to :3000)
+```
+
+### Controlling a blind
+
+Each channel appears as a card showing the channel name, ID, and last known state.
+
+| Button | Action |
+|--------|--------|
+| **▲ Up** | Raises the blind |
+| **■ Stop** | Stops movement immediately |
+| **▼ Down** | Lowers the blind |
+| **⚙ Pair** | Sends the pairing command — see [Pairing a channel](#pairing-a-channel) |
+
+The **state badge** (top-right of each card) updates after every button press.
+
+### Bulk controls
+
+The **All Channels** card at the top of the page sends the same command to every enabled channel simultaneously:
+
+- **▲ All Up** — raise all blinds
+- **■ All Stop** — stop all blinds
+- **▼ All Down** — lower all blinds
+
+If one or more channels fail, a warning toast shows how many channels responded successfully.
+
+### Learning a code from your remote
+
+If a channel does not yet have an RF code stored for a particular command, you can teach it directly from the web UI without using `curl`.
+
+1. Expand the **▸ Learn code from remote** section on the channel card.
+2. Select the **Command** you want to learn (`up`, `down`, `stop`, or `pair`).
+3. Set the **Timeout** (seconds) the radio will listen for a signal (default: 10 s).
+4. Click **📡 Start Learning**.
+5. Within the timeout period, press the matching button on your physical remote while holding it close to the SX1278 antenna.
+6. A toast notification confirms the captured code and it is saved automatically to `config/blinds.json`.
+
+Repeat for every command on every channel.
+
+> **Tip:** If capture fails, try holding the remote closer to the antenna and increasing the timeout to 20 seconds.
+
+### Pairing a channel
+
+The **⚙ Pair** button sends the pairing command that links the SX1278 to a specific channel on the blind motor.  The exact pairing procedure varies by motor model, but for AC123-16D-style motors:
+
+1. **Power-cycle the blind motor** (or hold the motor's reset button until the blind jogs up and down).
+2. Within ~5 seconds, click **⚙ Pair** in the web UI.
+3. The blind should jog to confirm pairing.
+
+Before pairing works, the `pair` RF code must already be learned for that channel.  If it has not been learned yet, use the **Learn code from remote** panel to capture it first.
 
 ---
 
@@ -532,9 +615,28 @@ blinds-server/
 │   │   └── blindsService.js # Channel state management
 │   └── utils/
 │       └── logger.js        # Winston logger
+├── ui/                      # Web UI source (React + Tailwind, built by Vite)
+│   ├── index.html           # Vite entry HTML
+│   └── src/
+│       ├── main.jsx         # React entry point
+│       ├── App.jsx          # Root component
+│       ├── api.js           # fetch helpers
+│       ├── index.css        # Tailwind base styles
+│       ├── components/
+│       │   ├── ChannelCard.jsx   # Per-channel control card
+│       │   ├── BulkControls.jsx  # All-channels card
+│       │   └── Toast.jsx         # Toast notification container
+│       └── hooks/
+│           └── useToast.js  # Toast state hook
+├── public/                  # ⚠ Build output — do not edit manually
+│   │                        #   generated by `npm run build:ui`
+│   └── …
 ├── .env.example             # Environment variable template
 ├── .gitignore
 ├── package.json
+├── postcss.config.js        # PostCSS config (used by Vite/Tailwind)
+├── tailwind.config.js       # Tailwind CSS config
+├── vite.config.js           # Vite build config
 └── README.md
 ```
 
