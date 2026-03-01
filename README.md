@@ -10,13 +10,13 @@ The service exposes a clean REST API.  All RF transmission and reception is hand
 
 1. [Hardware requirements](#hardware-requirements)
 2. [Wiring](#wiring)
-3. [Raspberry Pi OS setup](#raspberry-pi-os-setup)
-4. [Software installation](#software-installation)
+3. [Quick start with Docker (recommended)](#quick-start-with-docker-recommended)
+4. [Manual installation](#manual-installation)
 5. [Configuration](#configuration)
 6. [Capturing RF codes from your remote](#capturing-rf-codes-from-your-remote)
 7. [Running the service](#running-the-service)
-8. [Running as a systemd service](#running-as-a-systemd-service)
-9. [Web interface](#web-interface)
+8. [Web interface](#web-interface)
+9. [Running as a systemd service](#running-as-a-systemd-service)
 10. [API reference](#api-reference)
 11. [Project structure](#project-structure)
 12. [Troubleshooting](#troubleshooting)
@@ -55,9 +55,92 @@ Connect the SX1278 to the Raspberry Pi's SPI0 bus:
 
 ---
 
-## Raspberry Pi OS setup
+## Quick start with Docker (recommended)
 
-### 1. Enable SPI
+Docker is the easiest way to run blinds-server on a Raspberry Pi.  The image
+bundles Node.js, Python, and all dependencies — no manual venv or nvm setup
+required.
+
+### Prerequisites
+
+- Docker Engine ≥ 24 and Docker Compose ≥ 2.20 ([install guide](https://docs.docker.com/engine/install/debian/))
+- SPI enabled on the Pi (see step below)
+
+### 1. Enable SPI on the Raspberry Pi
+
+```bash
+sudo raspi-config
+# Navigate to: Interface Options → SPI → Enable
+# Reboot
+```
+
+Verify:
+
+```bash
+ls /dev/spi*
+# Should show: /dev/spidev0.0  /dev/spidev0.1
+```
+
+### 2. Clone the repository and configure
+
+```bash
+git clone https://github.com/nprail/blinds-server.git
+cd blinds-server
+cp .env.example .env
+# Edit .env if you need non-default settings (port, GPIO pins, etc.)
+nano .env
+```
+
+### 3. Start the service
+
+```bash
+docker compose up -d
+```
+
+Docker Compose builds the image on first run (this takes a few minutes while
+it compiles the Python extensions).  Subsequent starts are instant.
+
+Open the web interface at **http://\<pi-hostname-or-ip\>:3000**.
+
+### Useful Docker commands
+
+```bash
+# View live logs
+docker compose logs -f
+
+# Stop the service
+docker compose down
+
+# Rebuild after code changes
+docker compose build && docker compose up -d
+
+# Open a shell inside the running container
+docker compose exec blinds-server sh
+```
+
+### Persisting RF codes
+
+The `config/` directory is bind-mounted into the container, so any RF codes
+you learn through the web UI or API are written directly to
+`config/blinds.json` on the host and survive container restarts or upgrades.
+
+### Updating
+
+```bash
+git pull
+docker compose build && docker compose up -d
+```
+
+---
+
+## Manual installation
+
+> **Note:** The Docker method above is recommended.  Follow the steps below
+> only if you prefer not to use Docker.
+
+### Raspberry Pi OS setup
+
+#### 1. Enable SPI
 
 ```bash
 sudo raspi-config
@@ -72,30 +155,28 @@ ls /dev/spi*
 # Should show: /dev/spidev0.0  /dev/spidev0.1
 ```
 
-### 2. Update the system
+#### 2. Update the system
 
 ```bash
 sudo apt-get update && sudo apt-get upgrade -y
 ```
 
-### 3. Install system dependencies
+#### 3. Install system dependencies
 
 ```bash
 sudo apt-get install -y python3 python3-pip python3-venv git
 ```
 
----
+### Software installation
 
-## Software installation
-
-### 1. Clone the repository
+#### 1. Clone the repository
 
 ```bash
 git clone https://github.com/nprail/blinds-server.git
 cd blinds-server
 ```
 
-### 2. Install Node.js 22
+#### 2. Install Node.js 22
 
 If Node.js 22 is not already installed, use [nvm](https://github.com/nvm-sh/nvm):
 
@@ -107,19 +188,19 @@ nvm use 22
 node --version   # should print v22.x.x
 ```
 
-### 3. Install Node.js dependencies
+#### 3. Install Node.js dependencies
 
 ```bash
 npm install
 ```
 
-### 4. Build the web UI
+#### 4. Build the web UI
 
 ```bash
 npm run build:ui
 ```
 
-### 5. Install Python dependencies
+#### 5. Install Python dependencies
 
 The Python scripts need `spidev` and `RPi.GPIO`.  Use a virtual environment to
 keep things tidy:
@@ -136,7 +217,7 @@ If you use a virtual environment, update `PYTHON_PATH` in your `.env`:
 PYTHON_PATH=/home/pi/blinds-server/.venv/bin/python3
 ```
 
-### 6. Create your environment file
+#### 6. Create your environment file
 
 ```bash
 cp .env.example .env
@@ -252,13 +333,21 @@ library to decode and print the binary code, then paste it into
 
 ## Running the service
 
-### Development (with auto-restart on file changes)
+### With Docker (recommended)
+
+```bash
+docker compose up -d
+```
+
+See [Quick start with Docker](#quick-start-with-docker-recommended) for full details.
+
+### Without Docker — development (with auto-restart on file changes)
 
 ```bash
 npm run dev
 ```
 
-### Production
+### Without Docker — production
 
 ```bash
 npm start
@@ -290,7 +379,13 @@ Expected response:
 
 ## Running as a systemd service
 
-Create a unit file so the service starts automatically on boot:
+> **Docker users:** The `docker-compose.yml` already sets `restart: unless-stopped`,
+> so the container comes back up automatically after a reboot — no systemd unit
+> needed.  Run `sudo systemctl enable docker` once to make Docker itself start on
+> boot.
+
+If you are **not** using Docker, you can create a systemd unit so the service
+starts automatically:
 
 ```bash
 sudo nano /etc/systemd/system/blinds-server.service
@@ -633,6 +728,8 @@ blinds-server/
 │   └── …
 ├── .env.example             # Environment variable template
 ├── .gitignore
+├── docker-compose.yml       # Docker Compose service definition
+├── Dockerfile               # Multi-stage build (UI builder + runtime)
 ├── package.json
 ├── postcss.config.js        # PostCSS config (used by Vite/Tailwind)
 ├── tailwind.config.js       # Tailwind CSS config

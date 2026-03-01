@@ -1,0 +1,19 @@
+services:
+  blinds-server:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    # Pass the SPI bus and GPIO memory device into the container.
+    # Adjust the host paths if you use a different SPI chip-select (e.g. spidev0.1).
+    devices:
+      - /dev/spidev0.0:/dev/spidev0.0
+      - /dev/spidev0.1:/dev/spidev0.1
+      - /dev/gpiomem:/dev/gpiomem
+    # Mount config so learned RF codes survive container restarts / upgrades
+    volumes:
+      - ./config:/app/config
+    # Load environment overrides from .env (copy from .env.example to get started)
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
