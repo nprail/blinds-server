@@ -11,15 +11,13 @@ The service exposes a clean REST API.  All RF transmission and reception is hand
 1. [Hardware requirements](#hardware-requirements)
 2. [Wiring](#wiring)
 3. [Quick start with Docker (recommended)](#quick-start-with-docker-recommended)
-4. [Manual installation](#manual-installation)
-5. [Configuration](#configuration)
-6. [Capturing RF codes from your remote](#capturing-rf-codes-from-your-remote)
-7. [Running the service](#running-the-service)
-8. [Web interface](#web-interface)
-9. [Running as a systemd service](#running-as-a-systemd-service)
-10. [API reference](#api-reference)
-11. [Project structure](#project-structure)
-12. [Troubleshooting](#troubleshooting)
+4. [Configuration](#configuration)
+5. [Capturing RF codes from your remote](#capturing-rf-codes-from-your-remote)
+6. [Running the service](#running-the-service)
+7. [Web interface](#web-interface)
+8. [API reference](#api-reference)
+9. [Project structure](#project-structure)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -117,100 +115,6 @@ docker compose build && docker compose up -d
 
 ---
 
-## Manual installation
-
-> **Note:** The Docker method above is recommended.  Follow the steps below
-> only if you prefer not to use Docker.
-
-### Raspberry Pi OS setup
-
-#### 1. Enable SPI
-
-```bash
-sudo raspi-config
-# Navigate to: Interface Options → SPI → Enable
-# Reboot
-```
-
-Verify SPI is active:
-
-```bash
-ls /dev/spi*
-# Should show: /dev/spidev0.0  /dev/spidev0.1
-```
-
-#### 2. Update the system
-
-```bash
-sudo apt-get update && sudo apt-get upgrade -y
-```
-
-#### 3. Install system dependencies
-
-```bash
-sudo apt-get install -y python3 python3-pip python3-venv git
-```
-
-### Software installation
-
-#### 1. Clone the repository
-
-```bash
-git clone https://github.com/nprail/blinds-server.git
-cd blinds-server
-```
-
-#### 2. Install Node.js 22
-
-If Node.js 22 is not already installed, use [nvm](https://github.com/nvm-sh/nvm):
-
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-source ~/.bashrc
-nvm install 22
-nvm use 22
-node --version   # should print v22.x.x
-```
-
-#### 3. Install Node.js dependencies
-
-```bash
-npm install
-```
-
-#### 4. Build the web UI
-
-```bash
-npm run build:ui
-```
-
-#### 5. Install Python dependencies
-
-The Python scripts need `spidev` and `RPi.GPIO`.  Use a virtual environment to
-keep things tidy:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r python/requirements.txt
-```
-
-If you use a virtual environment, update `PYTHON_PATH` in your `.env`:
-
-```
-PYTHON_PATH=/home/pi/blinds-server/.venv/bin/python3
-```
-
-#### 6. Create your environment file
-
-```bash
-cp .env.example .env
-# Edit .env with your preferred editor
-nano .env
-```
-
----
-
 ## Configuration
 
 ### `.env`
@@ -298,30 +202,13 @@ to capture each button press once.
 
 ## Running the service
 
-### With Docker (recommended)
-
 ```bash
 docker compose up -d
 ```
 
 See [Quick start with Docker](#quick-start-with-docker-recommended) for full details.
 
-### Without Docker
-
-See **[docs/running.md](docs/running.md)** for instructions on running the
-server directly (development and production) and for setting up a systemd unit
-so the service starts on boot.
-
----
-
-## Running as a systemd service
-
-> **Docker users:** The `docker-compose.yml` already sets `restart: unless-stopped`,
-> so the container starts automatically after a reboot — no systemd unit needed.
-> Run `sudo systemctl enable docker` once to make Docker itself start on boot.
-
-For non-Docker installations, see **[docs/running.md](docs/running.md)** for
-the full systemd unit file and instructions.
+> **Running without Docker?** See **[docs/running.md](docs/running.md)**.
 
 ---
 
@@ -415,7 +302,7 @@ blinds-server/
 │   └── blinds.json          # Channel definitions and RF codes
 ├── docs/
 │   ├── api.md               # Full REST API reference
-│   └── running.md           # Manual run + systemd setup guide
+│   └── running.md           # Manual install + run + systemd setup guide
 ├── python/
 │   ├── sx1278.py            # SX1278 hardware driver (OOK mode)
 │   ├── rf_transmit.py       # RF transmit script (called by Node)
