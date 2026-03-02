@@ -322,93 +322,22 @@ docker compose up -d
 
 See [Quick start with Docker](#quick-start-with-docker-recommended) for full details.
 
-### Without Docker — development (with auto-restart on file changes)
+### Without Docker
 
-```bash
-npm run dev
-```
-
-### Without Docker — production
-
-```bash
-npm start
-```
-
-The server starts on `http://0.0.0.0:3000` (or whatever `PORT` you set).
-
-Verify it is running:
-
-```bash
-curl http://localhost:3000/api/health
-```
-
-Expected response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "status": "ok",
-    "version": "1.0.0",
-    "uptime": 4,
-    "timestamp": "2024-01-15T12:00:00.000Z"
-  }
-}
-```
+See **[docs/running.md](docs/running.md)** for instructions on running the
+server directly (development and production) and for setting up a systemd unit
+so the service starts on boot.
 
 ---
 
 ## Running as a systemd service
 
 > **Docker users:** The `docker-compose.yml` already sets `restart: unless-stopped`,
-> so the container comes back up automatically after a reboot — no systemd unit
-> needed.  Run `sudo systemctl enable docker` once to make Docker itself start on
-> boot.
+> so the container starts automatically after a reboot — no systemd unit needed.
+> Run `sudo systemctl enable docker` once to make Docker itself start on boot.
 
-If you are **not** using Docker, you can create a systemd unit so the service
-starts automatically:
-
-```bash
-sudo nano /etc/systemd/system/blinds-server.service
-```
-
-```ini
-[Unit]
-Description=blinds-server RF blind control
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/blinds-server
-EnvironmentFile=/home/pi/blinds-server/.env
-ExecStart=/home/pi/.nvm/versions/node/v22.0.0/bin/node src/index.js
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-> **Note:** Adjust the `ExecStart` path to match your Node.js installation.
-> Run `which node` to find it.
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable blinds-server
-sudo systemctl start  blinds-server
-sudo systemctl status blinds-server
-```
-
-View logs:
-
-```bash
-sudo journalctl -u blinds-server -f
-```
+For non-Docker installations, see **[docs/running.md](docs/running.md)** for
+the full systemd unit file and instructions.
 
 ---
 
@@ -490,174 +419,7 @@ Before pairing works, the `pair` RF code must already be learned for that channe
 
 ## API reference
 
-All endpoints are prefixed with `/api`.  Request and response bodies are JSON.
-
-### Health
-
-#### `GET /api/health`
-
-Returns service liveness information.
-
-**Response 200**
-```json
-{
-  "success": true,
-  "data": {
-    "status": "ok",
-    "version": "1.0.0",
-    "uptime": 120,
-    "timestamp": "2024-01-15T12:00:00.000Z"
-  }
-}
-```
-
----
-
-### Blinds
-
-#### `GET /api/blinds`
-
-Returns all configured channels with their last-known state.
-
-**Response 200**
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": 1,
-      "name": "Living Room",
-      "enabled": true,
-      "state": "up",
-      "codes": { "up": "...", "down": "...", "stop": "...", "pair": "..." },
-      "protocol": { "..." : "..." }
-    }
-  ]
-}
-```
-
----
-
-#### `GET /api/blinds/:id`
-
-Returns a single channel.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `id` | integer | Channel ID |
-
-**Response 200** — same shape as one element of the list above.
-
-**Response 404** — channel not found.
-
----
-
-#### `POST /api/blinds/:id/commands`
-
-Send any command to a channel.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `id` | integer | Channel ID |
-
-**Request body**
-```json
-{ "action": "up" }
-```
-
-`action` must be one of: `up`, `down`, `stop`, `pair`.
-
-**Response 200**
-```json
-{
-  "success": true,
-  "data": { "channelId": 1, "action": "up", "state": "up" }
-}
-```
-
----
-
-#### `POST /api/blinds/:id/up`
-#### `POST /api/blinds/:id/down`
-#### `POST /api/blinds/:id/stop`
-#### `POST /api/blinds/:id/pair`
-
-Shorthand routes — equivalent to `POST /api/blinds/:id/commands` with the
-matching `action` value.  No request body required.
-
----
-
-#### `POST /api/blinds/all/:action`
-
-Send the same command to every **enabled** channel.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `action` | string | `up`, `down`, or `stop` |
-
-**Response 200** (all succeeded) **/ 207** (partial failure)
-```json
-{
-  "success": true,
-  "data": [
-    { "channelId": 1, "success": true },
-    { "channelId": 2, "success": true }
-  ]
-}
-```
-
----
-
-#### `POST /api/blinds/learn`
-
-Enter RF capture mode to learn a code from your physical remote.  The SX1278
-listens for `timeoutSec` seconds; the first valid RF burst is stored.
-
-**Request body**
-```json
-{
-  "channelId": 1,
-  "command": "up",
-  "timeoutSec": 10
-}
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `channelId` | integer | ✅ | ID of the channel to update |
-| `command` | string | ✅ | `up`, `down`, `stop`, or `pair` |
-| `timeoutSec` | number | ❌ | Seconds to listen (1–60, default 10) |
-
-**Response 200**
-```json
-{
-  "success": true,
-  "data": {
-    "channelId": 1,
-    "command": "up",
-    "code": "10001010110001001000100010001000"
-  }
-}
-```
-
-**Response 408** — no signal captured within the timeout.
-
-**Response 422** — channel has no code configured yet (use learn first).
-
----
-
-### Error responses
-
-All error responses share this shape:
-
-```json
-{
-  "success": false,
-  "error": "Human-readable error message"
-}
-```
-
-In `NODE_ENV=development` mode, a `stack` field is also included.
+See **[docs/api.md](docs/api.md)** for the full API reference.
 
 ---
 
@@ -667,6 +429,9 @@ In `NODE_ENV=development` mode, a `stack` field is also included.
 blinds-server/
 ├── config/
 │   └── blinds.json          # Channel definitions and RF codes
+├── docs/
+│   ├── api.md               # Full REST API reference
+│   └── running.md           # Manual run + systemd setup guide
 ├── python/
 │   ├── sx1278.py            # SX1278 hardware driver (OOK mode)
 │   ├── rf_transmit.py       # RF transmit script (called by Node)
