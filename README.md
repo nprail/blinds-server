@@ -292,8 +292,6 @@ endpoint) to add your captured RF codes:
 Because the AC123-16D uses a **fixed code** (not rolling codes), you only need
 to capture each button press once.
 
-### Option A – Use the built-in learn endpoint (recommended)
-
 1. Start the service (see below).
 2. Point an HTTP client at the learn endpoint, specifying which channel and
    command you want to teach:
@@ -311,23 +309,6 @@ to capture each button press once.
    `config/blinds.json`.
 
 5. Repeat for each channel / command combination.
-
-### Option B – Use an RTL-SDR dongle and `rtl_433`
-
-If you have an RTL-SDR USB dongle, `rtl_433` can decode many 433 MHz remotes:
-
-```bash
-sudo apt-get install rtl-433
-rtl_433 -f 433920000 -R 0 -A   # raw pulse output
-```
-
-Copy the output timings into `config/blinds.json`.
-
-### Option C – Use an Arduino with a 433 MHz receiver module
-
-Upload a sketch that uses the [rc-switch](https://github.com/sui77/rc-switch)
-library to decode and print the binary code, then paste it into
-`config/blinds.json`.
 
 ---
 
