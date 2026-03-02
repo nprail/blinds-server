@@ -102,22 +102,6 @@ it compiles the Python extensions).  Subsequent starts are instant.
 
 Open the web interface at **http://\<pi-hostname-or-ip\>:3000**.
 
-### Useful Docker commands
-
-```bash
-# View live logs
-docker compose logs -f
-
-# Stop the service
-docker compose down
-
-# Rebuild after code changes
-docker compose build && docker compose up -d
-
-# Open a shell inside the running container
-docker compose exec blinds-server sh
-```
-
 ### Persisting RF codes
 
 The `config/` directory is bind-mounted into the container, so any RF codes
