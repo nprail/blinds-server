@@ -23,6 +23,8 @@ The service exposes a clean REST API.  All RF transmission and reception is hand
 
 ## Hardware requirements
 
+### Default: SX1278 SPI module
+
 | Component | Notes |
 |-----------|-------|
 | Raspberry Pi (any model with 40-pin GPIO) | Pi 3B / 3B+ / 4 / Zero 2W recommended |
@@ -30,6 +32,18 @@ The service exposes a clean REST API.  All RF transmission and reception is hand
 | AC123-16D remote (or compatible) | Used as the reference remote whose codes you capture |
 | Jumper wires | Female-to-female for direct GPIO connection |
 | 3.3 V power supply | **Do not use 5 V — the SX1278 is a 3.3 V device** |
+
+### Alternative: EBYTE E32 UART LoRa module
+
+An **EBYTE E32** (e.g. E32-433T20D / E32-433T30D) can be used instead of the
+SX1278 for a LoRa transparent-mode link — useful when you have E32 modules on
+both ends (Pi and blind motor controller) and want to avoid SPI entirely.
+
+> The E32 transmits LoRa packets, not raw OOK waveforms, so it **cannot** directly
+> emulate a standard AC123-16D-style remote.  Use the default SX1278 driver for
+> that purpose.
+
+See **[docs/e32.md](docs/e32.md)** for wiring, configuration, and setup details.
 
 ---
 
@@ -302,11 +316,15 @@ blinds-server/
 │   └── blinds.json          # Channel definitions and RF codes
 ├── docs/
 │   ├── api.md               # Full REST API reference
+│   ├── e32.md               # EBYTE E32 UART LoRa module setup guide
 │   └── running.md           # Manual install + run + systemd setup guide
 ├── python/
 │   ├── sx1278.py            # SX1278 hardware driver (OOK mode)
-│   ├── rf_transmit.py       # RF transmit script (called by Node)
-│   ├── rf_receive.py        # RF capture / learn script
+│   ├── rf_transmit.py       # RF transmit script — SX1278 (called by Node)
+│   ├── rf_receive.py        # RF capture / learn script — SX1278
+│   ├── e32.py               # EBYTE E32 hardware driver (UART LoRa)
+│   ├── rf_transmit_e32.py   # RF transmit script — E32 (called by Node)
+│   ├── rf_receive_e32.py    # RF receive / learn script — E32
 │   └── requirements.txt     # Python dependencies
 ├── src/
 │   ├── index.js             # Entry point — starts the HTTP server
