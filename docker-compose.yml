@@ -1,0 +1,17 @@
+services:
+  blinds-server:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    # Pass the GPIO memory device into the container so the Python scripts
+    # can toggle the FS1000A (TX) and read the RXB6 (RX) via RPi.GPIO.
+    devices:
+      - /dev/gpiomem:/dev/gpiomem
+    # Mount config so learned RF codes survive container restarts / upgrades
+    volumes:
+      - ./config:/app/config
+    # Load environment overrides from .env (copy from .env.example to get started)
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped

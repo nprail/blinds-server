@@ -1,0 +1,45 @@
+{
+  "name": "blinds-server",
+  "version": "1.0.0",
+  "description": "Node.js service for controlling 433.92 MHz RF-powered blinds via SX1278 LoRa module on Raspberry Pi",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "dev:ui": "vite",
+    "build:ui": "vite build",
+    "test": "node --test tests/**/*.test.js",
+    "lint": "eslint src/**/*.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.0.1",
+    "helmet": "^8.0.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.21.0",
+    "postcss": "^8.5.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.2.1"
+  },
+  "keywords": [
+    "blinds",
+    "rf",
+    "433mhz",
+    "raspberry-pi",
+    "sx1278",
+    "express",
+    "iot"
+  ],
+  "license": "MIT"
+}
