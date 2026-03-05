@@ -1,8 +1,8 @@
 # blinds-server
 
-A Node.js 22 / Express 5 service for controlling **AC123-16D-style** 433.92 MHz RF-powered blinds from a Raspberry Pi fitted with an **SX1278 LoRa** radio module.
+A Node.js 22 / Express 5 service for controlling **AC123-16D-style** 433.92 MHz RF-powered blinds from a Raspberry Pi fitted with an **FS1000A transmitter** and **RXB6 receiver**.
 
-The service exposes a clean REST API.  All RF transmission and reception is handled by a small Python helper script that talks to the SX1278 over SPI in **OOK (On-Off Keying)** mode — the same modulation used by virtually all 433 MHz blind remotes.
+The service exposes a clean REST API.  All RF transmission and reception is handled by a small Python helper script that bit-bangs the **OOK (On-Off Keying)** waveform directly over GPIO — the same modulation used by virtually all 433 MHz blind remotes.
 
 ---
 
@@ -23,47 +23,39 @@ The service exposes a clean REST API.  All RF transmission and reception is hand
 
 ## Hardware requirements
 
-### Default: SX1278 SPI module
-
 | Component | Notes |
 |-----------|-------|
 | Raspberry Pi (any model with 40-pin GPIO) | Pi 3B / 3B+ / 4 / Zero 2W recommended |
-| SX1278 LoRa 433 MHz module | Any breakout board labelled Ra-02, AI-Thinker, or similar |
+| FS1000A 433 MHz transmitter module | Widely available, ~$1; labelled XY-FST or similar |
+| RXB6 433 MHz receiver module | Superheterodyne; better sensitivity than XY-MK-5V |
 | AC123-16D remote (or compatible) | Used as the reference remote whose codes you capture |
 | Jumper wires | Female-to-female for direct GPIO connection |
-| 3.3 V power supply | **Do not use 5 V — the SX1278 is a 3.3 V device** |
-
-### Alternative: EBYTE E32 UART LoRa module
-
-An **EBYTE E32** (e.g. E32-433T20D / E32-433T30D) can be used instead of the
-SX1278 for a LoRa transparent-mode link — useful when you have E32 modules on
-both ends (Pi and blind motor controller) and want to avoid SPI entirely.
-
-> The E32 transmits LoRa packets, not raw OOK waveforms, so it **cannot** directly
-> emulate a standard AC123-16D-style remote.  Use the default SX1278 driver for
-> that purpose.
-
-See **[docs/e32.md](docs/e32.md)** for wiring, configuration, and setup details.
+| 5 V power supply | Both FS1000A and RXB6 run from the Pi's 5 V pin |
 
 ---
 
 ## Wiring
 
-Connect the SX1278 to the Raspberry Pi's SPI0 bus:
+Connect the modules to the Raspberry Pi GPIO header:
 
-| SX1278 Pin | Pi GPIO (BCM) | Pi Header pin | Function |
-|------------|---------------|---------------|----------|
-| VCC        | 3V3           | 1 or 17       | Power    |
-| GND        | GND           | 6, 9, 14, 20… | Ground   |
-| SCK        | GPIO 11       | 23            | SPI0 CLK |
-| MOSI       | GPIO 10       | 19            | SPI0 MOSI |
-| MISO       | GPIO 9        | 21            | SPI0 MISO |
-| NSS / CS   | GPIO 8 (CE0)  | 24            | SPI0 CE0 |
-| RESET      | GPIO 22       | 15            | Reset    |
-| DIO0       | GPIO 25       | 22            | IRQ (optional) |
+### FS1000A (transmitter)
 
-> **Tip:** If you want to use a different CE pin (e.g. CE1 on GPIO 7), set
-> `SX1278_SPI_DEVICE=1` in your `.env` and wire NSS to GPIO 7 (pin 26).
+| FS1000A Pin | Pi GPIO (BCM) | Pi Header pin | Notes |
+|-------------|---------------|---------------|-------|
+| VCC         | 5 V           | 2 or 4        | Use 5 V for maximum range |
+| GND         | GND           | 6, 9, 14, 20… | Ground |
+| DATA        | GPIO 17       | 11            | Configurable via `GPIO_TX_PIN` |
+
+### RXB6 (receiver)
+
+| RXB6 Pin | Pi GPIO (BCM) | Pi Header pin | Notes |
+|----------|---------------|---------------|-------|
+| VCC      | 5 V           | 2 or 4        | |
+| GND      | GND           | 6, 9, 14, 20… | Ground |
+| DATA     | GPIO 27       | 13            | Configurable via `GPIO_RX_PIN` |
+
+> **Tip:** Add a short wire antenna (17 cm for 433.92 MHz) to the ANT pin on
+> both modules to improve range.
 
 ---
 
@@ -76,24 +68,8 @@ required.
 ### Prerequisites
 
 - Docker Engine ≥ 24 and Docker Compose ≥ 2.20 ([install guide](https://docs.docker.com/engine/install/debian/))
-- SPI enabled on the Pi (see step below)
 
-### 1. Enable SPI on the Raspberry Pi
-
-```bash
-sudo raspi-config
-# Navigate to: Interface Options → SPI → Enable
-# Reboot
-```
-
-Verify:
-
-```bash
-ls /dev/spi*
-# Should show: /dev/spidev0.0  /dev/spidev0.1
-```
-
-### 2. Clone the repository and configure
+### 1. Clone the repository and configure
 
 ```bash
 git clone https://github.com/nprail/blinds-server.git
@@ -103,14 +79,14 @@ cp .env.example .env
 nano .env
 ```
 
-### 3. Start the service
+### 2. Start the service
 
 ```bash
 docker compose up -d
 ```
 
 Docker Compose builds the image on first run (this takes a few minutes while
-it compiles the Python extensions).  Subsequent starts are instant.
+it compiles RPi.GPIO).  Subsequent starts are instant.
 
 Open the web interface at **http://\<pi-hostname-or-ip\>:3000**.
 
@@ -139,13 +115,10 @@ docker compose build && docker compose up -d
 | `HOST` | `0.0.0.0` | Bind address |
 | `NODE_ENV` | `production` | `production` or `development` |
 | `LOG_LEVEL` | `info` | `error` \| `warn` \| `info` \| `debug` |
-| `RF_FREQUENCY_HZ` | `433920000` | Carrier frequency in Hz (433.92 MHz) |
 | `RF_REPEAT_COUNT` | `3` | How many times each RF frame is repeated |
 | `PYTHON_PATH` | `python3` | Path to the Python interpreter |
-| `SX1278_SPI_BUS` | `0` | SPI bus number |
-| `SX1278_SPI_DEVICE` | `0` | SPI chip-select (0 = CE0, 1 = CE1) |
-| `SX1278_RESET_PIN` | `22` | BCM GPIO pin wired to SX1278 RESET |
-| `SX1278_DIO0_PIN` | `25` | BCM GPIO pin wired to SX1278 DIO0 |
+| `GPIO_TX_PIN` | `17` | BCM GPIO pin wired to FS1000A DATA |
+| `GPIO_RX_PIN` | `27` | BCM GPIO pin wired to RXB6 DATA |
 
 ### `config/blinds.json`
 
@@ -205,7 +178,7 @@ to capture each button press once.
    ```
 
 3. Within 10 seconds, press the matching button on your physical remote
-   while it is held close to the SX1278 antenna.
+   while it is held close to the RXB6 antenna.
 
 4. The service will print the captured code and save it automatically to
    `config/blinds.json`.
@@ -283,7 +256,7 @@ If a channel does not yet have an RF code stored for a particular command, you c
 2. Select the **Command** you want to learn (`up`, `down`, `stop`, or `pair`).
 3. Set the **Timeout** (seconds) the radio will listen for a signal (default: 10 s).
 4. Click **📡 Start Learning**.
-5. Within the timeout period, press the matching button on your physical remote while holding it close to the SX1278 antenna.
+5. Within the timeout period, press the matching button on your physical remote while holding it close to the RXB6 antenna.
 6. A toast notification confirms the captured code and it is saved automatically to `config/blinds.json`.
 
 Repeat for every command on every channel.
@@ -292,7 +265,7 @@ Repeat for every command on every channel.
 
 ### Pairing a channel
 
-The **⚙ Pair** button sends the pairing command that links the SX1278 to a specific channel on the blind motor.  The exact pairing procedure varies by motor model, but for AC123-16D-style motors:
+The **⚙ Pair** button sends the pairing command to the blind motor.  The exact pairing procedure varies by motor model, but for AC123-16D-style motors:
 
 1. **Power-cycle the blind motor** (or hold the motor's reset button until the blind jogs up and down).
 2. Within ~5 seconds, click **⚙ Pair** in the web UI.
@@ -316,16 +289,11 @@ blinds-server/
 │   └── blinds.json          # Channel definitions and RF codes
 ├── docs/
 │   ├── api.md               # Full REST API reference
-│   ├── e32.md               # EBYTE E32 UART LoRa module setup guide
 │   └── running.md           # Manual install + run + systemd setup guide
 ├── python/
-│   ├── sx1278.py            # SX1278 hardware driver (OOK mode)
-│   ├── rf_transmit.py       # RF transmit script — SX1278 (called by Node)
-│   ├── rf_receive.py        # RF capture / learn script — SX1278
-│   ├── e32.py               # EBYTE E32 hardware driver (UART LoRa)
-│   ├── rf_transmit_e32.py   # RF transmit script — E32 (called by Node)
-│   ├── rf_receive_e32.py    # RF receive / learn script — E32
-│   └── requirements.txt     # Python dependencies
+│   ├── rf_transmit.py       # RF transmit script — FS1000A GPIO (called by Node)
+│   ├── rf_receive.py        # RF capture / learn script — RXB6 GPIO
+│   └── requirements.txt     # Python dependencies (RPi.GPIO)
 ├── src/
 │   ├── index.js             # Entry point — starts the HTTP server
 │   ├── app.js               # Express 5 app, middleware, routes
@@ -390,31 +358,31 @@ or, if using a venv:
 PYTHON_PATH=/home/pi/blinds-server/.venv/bin/python3
 ```
 
-### `Could not import sx1278 module`
+### `Could not import RPi.GPIO`
 
 Run:
 
 ```bash
-pip install spidev RPi.GPIO
+pip install RPi.GPIO
 ```
 
-Make sure you are running on a real Raspberry Pi with SPI enabled.
+Make sure you are running on a real Raspberry Pi.
 
 ### `No RF signal captured`
 
-- Hold the remote within 30 cm of the SX1278 antenna during capture.
-- Check the SPI wiring and ensure SPI is enabled (`ls /dev/spi*`).
+- Hold the remote within 30 cm of the RXB6 antenna during capture.
+- Check the DATA pin wiring and ensure the correct `GPIO_RX_PIN` is set in `.env`.
 - Try increasing `timeoutSec` to 20 seconds.
-- Verify the frequency matches your remote (most use 433.92 MHz; some use 434.075 MHz).
+- Verify the RXB6 is powered from 5 V (not 3.3 V) for maximum sensitivity.
 
 ### `RF transmission failed`
 
-- Confirm the SX1278 is powered from 3.3 V (NOT 5 V).
-- Check all SPI connections with a multimeter or logic analyser.
+- Confirm the FS1000A is powered from 5 V.
+- Check the DATA pin wiring and ensure the correct `GPIO_TX_PIN` is set in `.env`.
 - Run the Python script directly to see the full error:
 
   ```bash
-  python3 python/rf_transmit.py --payload '{"frequency":433920000,"code":"10110011","protocol":{},"repeat":1}'
+  python3 python/rf_transmit.py --payload '{"code":"10110011","protocol":{},"repeat":1,"txPin":17}'
   ```
 
 ### Blinds respond to one command but not another
@@ -422,12 +390,12 @@ Make sure you are running on a real Raspberry Pi with SPI enabled.
 The RF code for that command may be missing or wrong in `config/blinds.json`.
 Use the learn endpoint or re-capture the code.
 
-### Permission denied on `/dev/spidev*`
+### Permission denied on `/dev/gpiomem`
 
-Add your user to the `spi` group:
+Add your user to the `gpio` group:
 
 ```bash
-sudo usermod -a -G spi $USER
+sudo usermod -a -G gpio $USER
 # Log out and back in, then verify:
 id $USER
 ```

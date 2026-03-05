@@ -3,16 +3,9 @@ services:
     build: .
     ports:
       - "${PORT:-3000}:3000"
-    # Pass hardware devices into the container.
-    # Default (RF_DRIVER=sx1278): SPI bus + GPIO memory
-    # For EBYTE E32 (RF_DRIVER=e32): replace the spidev lines with your UART port.
-    #   Typical ports: /dev/ttyS0 (Pi 3/4 mini-UART), /dev/ttyAMA0 (full UART),
-    #   or /dev/ttyUSB0 (USB-to-serial adapter).
+    # Pass the GPIO memory device into the container so the Python scripts
+    # can toggle the FS1000A (TX) and read the RXB6 (RX) via RPi.GPIO.
     devices:
-      - /dev/spidev0.0:/dev/spidev0.0
-      - /dev/spidev0.1:/dev/spidev0.1
-      # Uncomment below (and remove the spidev lines above) when using RF_DRIVER=e32:
-      # - /dev/ttyS0:/dev/ttyS0
       - /dev/gpiomem:/dev/gpiomem
     # Mount config so learned RF codes survive container restarts / upgrades
     volumes:

@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-rf_transmit.py – Transmit an OOK RF code via the SX1278.
+rf_transmit.py – Transmit an OOK RF code via an FS1000A 433 MHz transmitter.
+
+The FS1000A DATA pin is wired to a Raspberry Pi GPIO output.  Pulling DATA
+HIGH turns the 433.92 MHz carrier on; pulling it LOW turns it off.  This
+produces the OOK pulse waveform used by AC123-16D-style blind remotes.
 
 Called by the Node.js rfService with a JSON payload:
 
     python3 rf_transmit.py --payload '<json>'
 
 JSON payload fields:
-  frequency   int    Carrier frequency in Hz          (default 433_920_000)
-  code        str    RF code – see "Code formats" below
-  protocol    dict   Timing parameters (see Protocol section)
-  repeat      int    Number of times to repeat the frame (default 3)
-  spiBus      int    SPI bus number                    (default 0)
-  spiDevice   int    SPI chip-select number            (default 0)
-  resetPin    int    BCM GPIO pin wired to SX1278 RESET (default 22)
+  code        str/list  RF code – see "Code formats" below
+  protocol    dict      Timing parameters (see Protocol section)
+  repeat      int       Number of times to repeat the frame (default 3)
+  txPin       int       BCM GPIO pin wired to FS1000A DATA    (default 17)
 
 ──────────────────────────────────────────────────────────────────────────────
 Code formats
@@ -23,10 +24,10 @@ Code formats
     Each character is one bit.  Pulse widths come from `protocol`.
 
 2.  Hex string     "0xB3..." or "B3..."
-    Converted to a binary string.
+    Converted to a binary string, then treated as (1) above.
 
 3.  Timing array   [350, 1050, 1050, 350, ...]
-    Raw alternating ON/OFF pulse widths in µs passed to the SX1278 directly.
+    Raw alternating ON/OFF pulse widths in µs, passed directly to the GPIO.
 
 ──────────────────────────────────────────────────────────────────────────────
 Protocol object (used for binary/hex codes)
@@ -39,23 +40,22 @@ Protocol object (used for binary/hex codes)
   one.high          int   Logic 1 ON  multiplier         (default 3)
   one.low           int   Logic 1 OFF multiplier         (default 1)
   invertedSignal    bool  Swap ON↔OFF for inverted wiring (default false)
-
-These defaults match the widely-used "Protocol 1" found in many 433 MHz
-OOK remotes and are a reasonable starting point for AC123-16D remotes.
-Capture the actual timings from your remote (see rf_receive.py) and adjust.
 """
 
 import sys
 import json
 import argparse
 import logging
+import time
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Transmit an OOK RF code via SX1278")
+    p = argparse.ArgumentParser(
+        description="Transmit an OOK RF code via FS1000A GPIO"
+    )
     p.add_argument("--payload", required=True, help="JSON payload string")
     return p.parse_args()
 
@@ -73,6 +73,10 @@ def build_timings(code, protocol):
     Convert a code string (binary or hex) to a flat list of ON/OFF timings
     in microseconds, prepending one sync pulse.
 
+    Binary strings (only '0' and '1' characters) are used as-is.
+    Hex strings (explicit '0x' prefix or containing non-binary hex digits
+    [2-9a-fA-F]) are converted to binary first.
+
     Returns: list[int]  – alternating ON, OFF durations in µs
     """
     pl        = protocol.get("pulseLength", 350)
@@ -84,17 +88,24 @@ def build_timings(code, protocol):
     one_low   = protocol.get("one",        {}).get("low",  1)
     inverted  = protocol.get("invertedSignal", False)
 
-    # Normalise code to a binary string
+    # Already a raw timing array
     if isinstance(code, list):
-        # Already a raw timing array – return as-is
         return code
 
     code = str(code).strip()
-    if code.lower().startswith("0x") or all(c in "0123456789abcdefABCDEF" for c in code):
-        try:
-            code = hex_to_bin(code)
-        except ValueError:
-            pass  # treat as binary string
+
+    # Detect binary string first — only '0' and '1', and non-empty
+    is_binary = bool(code) and all(c in "01" for c in code) and not code.lower().startswith("0x")
+
+    if not is_binary:
+        # Explicit hex prefix OR contains non-binary hex digits → decode as hex
+        if code.lower().startswith("0x") or any(
+            c in "23456789abcdefABCDEF" for c in code
+        ):
+            try:
+                code = hex_to_bin(code)
+            except ValueError:
+                pass  # fall through and treat as binary
 
     timings = []
 
@@ -117,49 +128,59 @@ def build_timings(code, protocol):
     return timings
 
 
+def _busy_wait_us(duration_us):
+    """Busy-wait for *duration_us* microseconds using monotonic clock."""
+    end = time.monotonic() + duration_us * 1e-6
+    while time.monotonic() < end:
+        pass
+
+
 def transmit(payload):
-    """Main transmit routine.  Imports hardware libs only when running."""
+    """Main transmit routine.  Imports RPi.GPIO only when running."""
     try:
-        from sx1278 import SX1278
+        import RPi.GPIO as GPIO
     except ImportError as exc:
         log.error(
-            "Could not import sx1278 module.  Make sure spidev and RPi.GPIO "
-            "are installed and you are running on a Raspberry Pi.\n"
-            f"  {exc}"
+            "Could not import RPi.GPIO.  Make sure it is installed and you are "
+            f"running on a Raspberry Pi.\n  {exc}"
         )
         sys.exit(1)
 
-    freq      = payload.get("frequency",  433_920_000)
-    code      = payload.get("code",       "")
-    protocol  = payload.get("protocol",   {})
-    repeat    = int(payload.get("repeat", 3))
-    spi_bus   = int(payload.get("spiBus",   0))
-    spi_dev   = int(payload.get("spiDevice", 0))
-    reset_pin = int(payload.get("resetPin", 22))
+    code     = payload.get("code",    "")
+    protocol = payload.get("protocol", {})
+    repeat   = int(payload.get("repeat", 3))
+    tx_pin   = int(payload.get("txPin",  17))
 
     if not code:
         log.error("No code provided in payload")
         sys.exit(1)
 
-    # Build timing list
-    if isinstance(code, list):
-        timings = code
-    else:
-        timings = build_timings(code, protocol)
+    timings = build_timings(code, protocol)
 
     log.info(
-        f"TX freq={freq/1e6:.2f} MHz  repeat={repeat}  "
-        f"timings={len(timings)//2} pulses"
+        f"TX pin={tx_pin}  repeat={repeat}  "
+        f"timings={len(timings)//2} pulse pairs"
     )
 
-    radio = SX1278(spi_bus=spi_bus, spi_device=spi_dev, reset_pin=reset_pin)
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+    GPIO.setup(tx_pin, GPIO.OUT, initial=GPIO.LOW)
+
     try:
-        radio.open()
-        radio.configure_ook(freq_hz=freq)
-        radio.transmit_timings(timings, repeat=repeat)
+        for _ in range(repeat):
+            pairs = list(zip(timings[0::2], timings[1::2]))
+            for on_us, off_us in pairs:
+                GPIO.output(tx_pin, GPIO.HIGH)
+                _busy_wait_us(on_us)
+                GPIO.output(tx_pin, GPIO.LOW)
+                _busy_wait_us(off_us)
+            # Inter-frame gap
+            time.sleep(0.010)
+
         log.info("Transmission complete")
     finally:
-        radio.close()
+        GPIO.output(tx_pin, GPIO.LOW)
+        GPIO.cleanup()
 
 
 def main():

@@ -14,7 +14,7 @@ RUN npm run build:ui
 # ── Stage 2: production runtime ──────────────────────────────────────────────
 FROM node:22-bookworm-slim
 
-# Install Python 3 + build tools needed to compile spidev and RPi.GPIO
+# Install Python 3 + build tools needed to compile RPi.GPIO
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3 \

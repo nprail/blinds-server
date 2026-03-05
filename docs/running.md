@@ -11,28 +11,13 @@ This guide covers installing and running blinds-server directly on the Raspberry
 
 ### Raspberry Pi OS setup
 
-#### 1. Enable SPI
-
-```bash
-sudo raspi-config
-# Navigate to: Interface Options → SPI → Enable
-# Reboot
-```
-
-Verify SPI is active:
-
-```bash
-ls /dev/spi*
-# Should show: /dev/spidev0.0  /dev/spidev0.1
-```
-
-#### 2. Update the system
+#### 1. Update the system
 
 ```bash
 sudo apt-get update && sudo apt-get upgrade -y
 ```
 
-#### 3. Install system dependencies
+#### 2. Install system dependencies
 
 ```bash
 sudo apt-get install -y python3 python3-pip python3-venv git
@@ -73,7 +58,7 @@ npm run build:ui
 
 #### 5. Install Python dependencies
 
-The Python scripts need `spidev` and `RPi.GPIO`.  Use a virtual environment to
+The Python scripts need `RPi.GPIO`.  Use a virtual environment to
 keep things tidy:
 
 ```bash
